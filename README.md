@@ -61,14 +61,19 @@ secrets are configured).
 ## Project layout
 
 ```
-app.py                     Streamlit UI
-barcode_tools/core.py      normalization + GS helpers (the shared logic)
-barcode_tools/io.py        robust Excel/CSV readers + safe Excel writer
-barcode_tools/ops.py       operations A-H
-barcode_tools/reports.py   report/table helpers
-tests/test_parity.py       parity tests vs. the original scripts
-.streamlit/config.toml     upload size + theme
-Dockerfile                 for container hosting
+app.py                              Streamlit UI
+barcode_tools/core.py               normalization + GS helpers (the shared logic)
+barcode_tools/io.py                 robust Excel/CSV readers + safe Excel writer
+barcode_tools/ops.py                operations A-H
+barcode_tools/presets.py            product preset loading/export
+barcode_tools/reports.py            report/table helpers
+presets.json                        built-in product presets
+tests/test_parity.py                parity tests vs. the original scripts
+.streamlit/config.toml              upload size + theme
+.streamlit/secrets.toml.example     Google-login template
+.github/workflows/tests.yml         CI: run tests on every push
+runtime.txt                         Python version for Streamlit Cloud
+Dockerfile                          for container hosting
 ```
 
 ## Run the tests
@@ -85,18 +90,11 @@ loads in ~2 s (vs ~37 s with openpyxl), a core-ID dedupe runs in <1 s, and a GS 
 
 ## Deploy to Streamlit Community Cloud (free)
 
-1. **Push to GitHub**
+1. **GitHub**
 
-   The `.gitignore` already excludes all `.xlsx` / `.csv` report data, so only code is
-   committed.
-   ```bash
-   git init
-   git add app.py barcode_tools tests .streamlit requirements.txt Dockerfile README.md .gitignore
-   git commit -m "Barcode / GS web toolkit"
-   git branch -M main
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
+   Already set up: code lives at https://github.com/artixi-a/zebrachecker (data files are
+   excluded by `.gitignore`, so only code is committed). Tests also run automatically on
+   every push via GitHub Actions.
 
 2. **Create the app**
 
