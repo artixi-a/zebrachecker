@@ -1,0 +1,40 @@
+{
+  "presets": [
+    {
+      "name": "Auto-detect (no preset)",
+      "prefix": "",
+      "gs_mode": "",
+      "marker": "",
+      "gs_prefix": "",
+      "expected_length": 0,
+      "dedupe_mode": "core_id"
+    },
+    {
+      "name": "Milk / Mleko / Vafl (GS before 93)",
+      "prefix": "0104680679601959215",
+      "gs_mode": "gs_before",
+      "marker": "91EE12",
+      "gs_prefix": "93",
+      "expected_length": 0,
+      "dedupe_mode": "core_id"
+    },
+    {
+      "name": "Nelly / Zebra (GS around 91EE12)",
+      "prefix": "0108606018940011215",
+      "gs_mode": "strict_surround",
+      "marker": "91EE12",
+      "gs_prefix": "93",
+      "expected_length": 0,
+      "dedupe_mode": "core_id"
+    },
+    {
+      "name": "Cokolada (0108606018945290215)",
+      "prefix": "0108606018945290215",
+      "gs_mode": "presence",
+      "marker": "91EE12",
+      "gs_prefix": "93",
+      "expected_length": 0,
+      "dedupe_mode": "core_id"
+    }
+  ]
+}
