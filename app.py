@@ -26,7 +26,14 @@ def require_auth():
     if user is None or not getattr(user, "is_logged_in", False):
         st.title("Sign in")
         st.write("Sign in with Google to use the report toolkit.")
-        st.login()
+        try:
+            st.login()
+        except Exception as exc:
+            st.error(
+                "Login is unavailable. Make sure 'Authlib' is installed (it is in "
+                "requirements.txt) and the [auth] secrets are configured. "
+                f"Details: {exc}"
+            )
         st.stop()
     email = getattr(user, "email", None)
     allowed = list(auth_cfg.get("allowed_emails", []))
