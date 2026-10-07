@@ -7,7 +7,7 @@ from collections import Counter
 
 import pandas as pd
 
-from .core import to_excel_safe, unxml
+from .core import normalize, to_excel_safe, unxml
 
 try:
     from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
@@ -177,18 +177,15 @@ def guess_surround_marker(series, limit=5000, top=5):
     return [token for token, _ in counts.most_common(top)]
 
 
-def guess_common_prefix(series, max_len=25, limit=5000):
-    values = [v for v in _sample_strings(series, limit) if v]
+def guess_common_prefix(series, length=19, limit=5000, min_share=0.5):
+    values = [normalize(v, upper=False) for v in _sample_strings(series, limit)]
+    values = [v for v in values if v]
     if not values:
         return ""
-    prefix = values[0][:max_len]
-    for value in values[1:]:
-        i = 0
-        while i < len(prefix) and i < len(value) and prefix[i] == value[i]:
-            i += 1
-        prefix = prefix[:i]
-        if not prefix:
-            break
+    counts = Counter(v[:length] for v in values)
+    prefix, count = counts.most_common(1)[0]
+    if count / len(values) < min_share:
+        return ""
     return prefix
 
 

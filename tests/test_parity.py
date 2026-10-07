@@ -276,6 +276,21 @@ class OperationTests(unittest.TestCase):
             any("placement" in key.lower() for key in presence.sheets)
         )
 
+    def test_guess_common_prefix_majority(self):
+        prefix = "0108606018940011215"
+        series = pd.Series(
+            [prefix + "AAA", prefix + "BBB", prefix + "CCC", "9999999999999999999XYZ"]
+        )
+        self.assertEqual(btio.guess_common_prefix(series), prefix)
+        mixed = pd.Series(
+            [
+                "1111111111111111111",
+                "2222222222222222222",
+                "3333333333333333333",
+            ]
+        )
+        self.assertEqual(btio.guess_common_prefix(mixed), "")
+
     def test_guess_code_length(self):
         prefix = "0108606018940011215"
         df = pd.DataFrame(
