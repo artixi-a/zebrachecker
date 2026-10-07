@@ -1,3 +1,4 @@
+import importlib.util
 import io as _io
 import os
 import re
@@ -13,12 +14,7 @@ try:
 except Exception:
     ILLEGAL_CHARACTERS_RE = re.compile(r"[\000-\010]|[\013-\014]|[\016-\037]")
 
-try:
-    import python_calamine  # noqa: F401
-
-    _HAS_CALAMINE = True
-except Exception:
-    _HAS_CALAMINE = False
+_HAS_CALAMINE = importlib.util.find_spec("python_calamine") is not None
 
 EXCEL_EXTENSIONS = (".xlsx", ".xlsm", ".xls", ".xlsb", ".ods")
 CSV_EXTENSIONS = (".csv", ".tsv", ".txt")

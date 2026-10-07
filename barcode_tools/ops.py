@@ -10,8 +10,6 @@ from .core import (
     DEFAULT_CORE_LENGTH,
     DEFAULT_GS_PREFIX,
     DEFAULT_MARKER,
-    DEFAULT_MIN_LENGTH,
-    GS_XML,
 )
 
 

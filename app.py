@@ -2,7 +2,6 @@ import io
 import os
 import re
 
-import pandas as pd
 import streamlit as st
 
 from barcode_tools import core, io as bt_io, ops, presets, reports
@@ -313,12 +312,12 @@ def op_prefix(df, key):
 def op_length(df, key):
     column = pick_column(df, key)
     values = df[column]
-    detected = btio.guess_code_length(values)
+    detected = bt_io.guess_code_length(values)
     if detected:
         st.caption(f"Auto-detected proper length: {detected}")
         with st.expander("Length distribution"):
             st.dataframe(
-                btio.length_distribution(values),
+                bt_io.length_distribution(values),
                 use_container_width=True,
                 height=220,
             )
@@ -501,7 +500,7 @@ def op_full_audit(df, key):
         marker = st.text_input("Marker for strict placement", default_marker, key=f"fa_mark_{key}_{ptag()}")
     elif mode == "gs_before":
         gs_prefix = st.text_input("GS must directly precede (token)", default_token, key=f"fa_gs_{key}_{ptag()}")
-    detected_length = btio.guess_code_length(values) or 0
+    detected_length = bt_io.guess_code_length(values) or 0
     c1, c2 = st.columns(2)
     prefix = c1.text_input("Required prefix (blank = skip)", default_prefix, key=f"fa_pfx_{key}_{ptag()}")
     expected = c2.number_input(

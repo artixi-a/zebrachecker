@@ -14,5 +14,9 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Lint (undefined names, unused imports)
+        run: |
+          pip install pyflakes
+          python -m pyflakes app.py barcode_tools length_check.py tests
       - name: Run tests
         run: python -m unittest discover -s tests -v
