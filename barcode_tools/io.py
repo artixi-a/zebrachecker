@@ -6,7 +6,7 @@ from collections import Counter
 
 import pandas as pd
 
-from .core import to_excel_safe
+from .core import to_excel_safe, unxml
 
 try:
     from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
@@ -194,6 +194,30 @@ def guess_common_prefix(series, max_len=25, limit=5000):
         if not prefix:
             break
     return prefix
+
+
+def code_lengths(series):
+    return series.dropna().astype(str).map(lambda v: len(unxml(v)))
+
+
+def guess_code_length(series):
+    lengths = code_lengths(series)
+    if lengths.empty:
+        return None
+    return int(lengths.value_counts().idxmax())
+
+
+def length_distribution(series):
+    lengths = code_lengths(series)
+    counts = lengths.value_counts().sort_index(ascending=False)
+    total = int(counts.sum()) or 1
+    return pd.DataFrame(
+        {
+            "Length": counts.index.astype(int),
+            "Count": counts.values,
+            "Percent": (counts.values / total * 100).round(2),
+        }
+    )
 
 
 def _excel_safe_cell(value):

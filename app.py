@@ -312,10 +312,21 @@ def op_prefix(df, key):
 
 def op_length(df, key):
     column = pick_column(df, key)
+    values = df[column]
+    detected = btio.guess_code_length(values)
+    if detected:
+        st.caption(f"Auto-detected proper length: {detected}")
+        with st.expander("Length distribution"):
+            st.dataframe(
+                btio.length_distribution(values),
+                use_container_width=True,
+                height=220,
+            )
+    default_len = int(pv("expected_length", 0)) or detected or core.DEFAULT_CORE_LENGTH
     target = st.number_input(
         "Target cleaned length",
         min_value=1,
-        value=int(pv("expected_length", 0)) or core.DEFAULT_CORE_LENGTH,
+        value=int(default_len),
         key=f"len_{key}_{ptag()}",
     )
     if st.button("Run", type="primary", key=f"run_len_{key}"):
@@ -490,14 +501,17 @@ def op_full_audit(df, key):
         marker = st.text_input("Marker for strict placement", default_marker, key=f"fa_mark_{key}_{ptag()}")
     elif mode == "gs_before":
         gs_prefix = st.text_input("GS must directly precede (token)", default_token, key=f"fa_gs_{key}_{ptag()}")
+    detected_length = btio.guess_code_length(values) or 0
     c1, c2 = st.columns(2)
     prefix = c1.text_input("Required prefix (blank = skip)", default_prefix, key=f"fa_pfx_{key}_{ptag()}")
     expected = c2.number_input(
         "Expected length (0 = skip)",
         min_value=0,
-        value=int(pv("expected_length", 0)),
+        value=int(pv("expected_length", 0)) or detected_length,
         key=f"fa_len_{key}_{ptag()}",
     )
+    if detected_length:
+        c2.caption(f"Auto-detected: {detected_length}")
     dedupe_options = ["core_id", "full"]
     dedupe_default = pv("dedupe_mode", "core_id")
     if dedupe_default not in dedupe_options:

@@ -44,6 +44,9 @@ counts, seeds) are now inputs in the UI.
 - **Auto-detected GS markers/prefixes** - the app scans the codes and prefills the GS
   marker (e.g. `91EE12`), the GS-adjacent token (e.g. `93`) and the common code prefix
   (e.g. `0104680679601959215`), so different products work without hand-typing.
+- **Auto-detected code length** - on load, the app finds the most common (proper) length
+  and prefills it in the Length audit and Full audit, with a length-distribution view so
+  you can see exactly how many rows sit at each length.
 - **Downloads** - every result offers Excel (`.xlsx`) plus CSV and TSV. Full audit offers a
   multi-sheet `.xlsx` and CSV/TSV zip files (one per sheet).
 - **Input formats** - `.xlsx`, `.xlsm`, `.xls`, `.xlsb`, `.ods`, `.csv`, `.tsv`, `.txt`.
@@ -62,6 +65,7 @@ secrets are configured).
 
 ```
 app.py                              Streamlit UI
+length_check.py                     standalone command-line length checker
 barcode_tools/core.py               normalization + GS helpers (the shared logic)
 barcode_tools/io.py                 robust Excel/CSV readers + safe Excel writer
 barcode_tools/ops.py                operations A-H
@@ -75,6 +79,18 @@ tests/test_parity.py                parity tests vs. the original scripts
 runtime.txt                         Python version for Streamlit Cloud
 Dockerfile                          for container hosting
 ```
+
+## Standalone length checker
+
+Quick command-line check of code lengths (auto-detects the proper length):
+
+```bash
+python length_check.py "report.xlsx"
+python length_check.py "report.xlsx" "QR Code"   # optional column name
+```
+
+It prints the length distribution and the detected proper length, and saves the rows
+whose length differs to `report_length_offenders.xlsx`.
 
 ## Run the tests
 

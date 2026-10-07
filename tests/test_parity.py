@@ -277,6 +277,22 @@ class OperationTests(unittest.TestCase):
             any("placement" in key.lower() for key in presence.sheets)
         )
 
+    def test_guess_code_length(self):
+        prefix = "0108606018940011215"
+        df = pd.DataFrame(
+            {
+                "QR Code": [
+                    prefix + "AAAA\x1d91EE12\x1d92BBB=",
+                    prefix + "BBBB\x1d91EE12\x1d92CCC=",
+                    prefix + "SHORT",
+                ]
+            }
+        )
+        expected = len(core.unxml(df["QR Code"].iloc[0]))
+        self.assertEqual(btio.guess_code_length(df["QR Code"]), expected)
+        dist = btio.length_distribution(df["QR Code"])
+        self.assertEqual(int(dist["Count"].sum()), 3)
+
     def test_guess_code_column(self):
         df = pd.DataFrame(
             {
