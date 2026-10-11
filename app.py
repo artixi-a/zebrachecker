@@ -138,25 +138,40 @@ def _extra_specs(base_name):
 def _column_editor(base_name):
     store = st.session_state.setdefault("extra_cols", {})
     specs = store.setdefault(base_name, [])
+
+    st.markdown("**1. Add columns** (optional)")
     if specs:
-        st.caption("Added columns: " + ", ".join(s["name"] for s in specs))
+        for i, spec in enumerate(specs):
+            c1, c2 = st.columns([6, 1])
+            kind = "date" if spec.get("is_date") else "text"
+            c1.markdown(f"- **{spec['name']}** = `{spec['value']}` &nbsp;<sub>{kind}</sub>")
+            if c2.button("Remove", key=f"extra_rm_{base_name}_{i}"):
+                specs.pop(i)
+                st.rerun(scope="fragment")
         if st.button("Clear all", key=f"extra_clear_{base_name}"):
             store[base_name] = []
             st.rerun(scope="fragment")
-    name = st.text_input(
-        "New column name", key=f"extra_name_{base_name}", placeholder="Expiration date"
-    )
-    is_date = st.checkbox(
-        "Format as date (real Excel date)", value=True, key=f"extra_isd_{base_name}"
-    )
-    if is_date:
-        value = st.date_input("Value", key=f"extra_dval_{base_name}")
     else:
-        value = st.text_input("Value", key=f"extra_tval_{base_name}")
-    st.caption("The value is written to every exported row.")
-    if st.button("Add column", type="primary", key=f"extra_add_{base_name}"):
+        st.caption("No extra columns yet. The file downloads with its original columns.")
+
+    kind = st.radio(
+        "New column type",
+        ["Date", "Text"],
+        horizontal=True,
+        key=f"extra_kind_{base_name}",
+    )
+    with st.form(key=f"extra_form_{base_name}", clear_on_submit=True):
+        name = st.text_input("Column name", placeholder="e.g. Expiration date")
+        if kind == "Date":
+            value = st.date_input("Date (same for every row)")
+        else:
+            value = st.text_input("Text value (same for every row)", placeholder="e.g. LOT-123")
+        submitted = st.form_submit_button("Add column")
+    if submitted:
         if name.strip():
-            specs.append({"name": name.strip(), "value": value, "is_date": is_date})
+            specs.append(
+                {"name": name.strip(), "value": value, "is_date": kind == "Date"}
+            )
             st.rerun(scope="fragment")
         else:
             st.warning("Enter a column name.")
@@ -164,16 +179,15 @@ def _column_editor(base_name):
 
 @st.dialog("Export to Excel")
 def _excel_export_dialog(result, base_name, header):
-    st.write(
-        "Do you want to add extra columns before exporting "
-        "(e.g. manufacture date, expiration date)?"
+    st.caption(
+        "You can add columns (e.g. manufacture date, expiration date) that get "
+        "filled in for every row, or just download the file as is."
     )
     _column_editor(base_name)
-    specs = _extra_specs(base_name)
-    export_df = bt_io.apply_extra_columns(result, specs)
-    if specs:
-        with st.expander("Preview (first 5 rows)", expanded=True):
-            st.dataframe(_display(export_df).head(5), use_container_width=True)
+    export_df = bt_io.apply_extra_columns(result, _extra_specs(base_name))
+    if _extra_specs(base_name):
+        st.markdown("**2. Preview** (first 5 rows)")
+        st.dataframe(_display(export_df).head(5), use_container_width=True)
     st.divider()
     st.download_button(
         "Download .xlsx",
@@ -189,7 +203,11 @@ def _excel_export_dialog(result, base_name, header):
 def _download_buttons(result, base_name, header=True):
     stem = os.path.splitext(base_name)[0]
     c1, c2, c3 = st.columns(3)
-    if c1.button("Download Excel (.xlsx)", key=f"dl_xlsx_{base_name}"):
+    if c1.button(
+        "Download Excel (.xlsx)",
+        key=f"dl_xlsx_{base_name}",
+        help="Opens export options where you can add extra columns before downloading.",
+    ):
         _excel_export_dialog(result, base_name, header)
     c2.download_button(
         "Download CSV",
