@@ -131,30 +131,72 @@ def _display(df):
     return df
 
 
+def _extra_specs(base_name):
+    return st.session_state.get("extra_cols", {}).get(base_name, [])
+
+
+def _export_frame(result, base_name):
+    return bt_io.apply_extra_columns(result, _extra_specs(base_name))
+
+
+@st.dialog("Add columns to export")
+def _extra_columns_dialog(base_name):
+    store = st.session_state.setdefault("extra_cols", {})
+    specs = store.setdefault(base_name, [])
+    if specs:
+        st.caption("Current columns: " + ", ".join(s["name"] for s in specs))
+        if st.button("Clear all", key=f"extra_clear_{base_name}"):
+            store[base_name] = []
+            st.rerun(scope="fragment")
+    name = st.text_input(
+        "Column name", key=f"extra_name_{base_name}", placeholder="Expiration date"
+    )
+    is_date = st.checkbox(
+        "Format as date (real Excel date)", value=True, key=f"extra_isd_{base_name}"
+    )
+    if is_date:
+        value = st.date_input("Value", key=f"extra_dval_{base_name}")
+    else:
+        value = st.text_input("Value", key=f"extra_tval_{base_name}")
+    st.caption("The value is written to every exported row.")
+    if st.button("Add column", type="primary", key=f"extra_add_{base_name}"):
+        if name.strip():
+            specs.append({"name": name.strip(), "value": value, "is_date": is_date})
+            st.rerun(scope="fragment")
+        else:
+            st.warning("Enter a column name.")
+
+
 def _download_buttons(result, base_name, header=True):
     stem = os.path.splitext(base_name)[0]
+    export_df = _export_frame(result, base_name)
     c1, c2, c3 = st.columns(3)
     c1.download_button(
         "Download Excel (.xlsx)",
-        data=bt_io.to_excel_bytes(result, header=header),
+        data=bt_io.to_excel_bytes(export_df, header=header),
         file_name=f"{stem}.xlsx",
         mime=EXCEL_MIME,
         key=f"dl_xlsx_{base_name}",
     )
     c2.download_button(
         "Download CSV",
-        data=bt_io.to_csv_bytes(result, header=header),
+        data=bt_io.to_csv_bytes(export_df, header=header),
         file_name=f"{stem}.csv",
         mime="text/csv",
         key=f"dl_csv_{base_name}",
     )
     c3.download_button(
         "Download TSV",
-        data=bt_io.to_csv_bytes(result, header=header, sep="\t"),
+        data=bt_io.to_csv_bytes(export_df, header=header, sep="\t"),
         file_name=f"{stem}.tsv",
         mime="text/tab-separated-values",
         key=f"dl_tsv_{base_name}",
     )
+    bc, cc = st.columns([1, 4])
+    if bc.button("Add columns", key=f"addcols_{base_name}"):
+        _extra_columns_dialog(base_name)
+    if _extra_specs(base_name):
+        cc.caption("Extra columns: " + ", ".join(s["name"] for s in _extra_specs(base_name)))
 
 
 def _download_sheets(sheets, base_name):
@@ -227,7 +269,7 @@ def show_result(res):
             _download_buttons(res.result, res.output_name, res.output_header)
             with st.expander("Preview cleaned file (first 100 rows)"):
                 st.dataframe(
-                    _display(res.result).head(100),
+                    _display(_export_frame(res.result, res.output_name)).head(100),
                     use_container_width=True,
                 )
         st.caption("Audit sheets: " + ", ".join(res.sheets.keys()))
@@ -242,7 +284,10 @@ def show_result(res):
     elif res.result is not None:
         _download_buttons(res.result, res.output_name, res.output_header)
         with st.expander("Preview output (first 100 rows)"):
-            st.dataframe(_display(res.result).head(100), use_container_width=True)
+            st.dataframe(
+                _display(_export_frame(res.result, res.output_name)).head(100),
+                use_container_width=True,
+            )
 
 
 def single_file_section(title, uploaded, key):

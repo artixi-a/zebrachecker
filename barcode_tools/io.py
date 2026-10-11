@@ -252,6 +252,24 @@ def _write_excel(df, target, index, header, sheet_name):
     )
 
 
+def apply_extra_columns(df, specs=None):
+    if not specs:
+        return df
+    out = df.copy()
+    for spec in specs:
+        name = str(spec.get("name", "")).strip()
+        if not name:
+            continue
+        value = spec.get("value")
+        if spec.get("is_date") and value not in (None, ""):
+            try:
+                value = pd.to_datetime(value)
+            except Exception:
+                pass
+        out[name] = value
+    return out
+
+
 def to_excel_bytes(df, index=False, header=True, sheet_name="Sheet1"):
     buf = _io.BytesIO()
     _write_excel(df, buf, index, header, sheet_name)

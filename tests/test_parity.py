@@ -145,6 +145,24 @@ class OperationTests(unittest.TestCase):
         self.assertIn("_x0000_", back.iloc[0, 0])
         self.assertNotIn("\x1d", back.iloc[0, 0])
 
+    def test_apply_extra_columns(self):
+        df = pd.DataFrame({"QR Code": ["a", "b", "c"]})
+        out = btio.apply_extra_columns(
+            df, [{"name": "Expiration date", "value": "2026-12-31", "is_date": True}]
+        )
+        self.assertIn("Expiration date", out.columns)
+        self.assertEqual(len(out), 3)
+        self.assertTrue(pd.api.types.is_datetime64_any_dtype(out["Expiration date"]))
+        self.assertEqual(out["Expiration date"].nunique(), 1)
+        text = btio.apply_extra_columns(
+            df, [{"name": "Batch", "value": "LOT-1", "is_date": False}]
+        )
+        self.assertEqual(list(text["Batch"]), ["LOT-1"] * 3)
+        self.assertIs(btio.apply_extra_columns(df), df)
+        buf = btio.to_excel_bytes(out)
+        back = pd.read_excel(io.BytesIO(buf), dtype=str)
+        self.assertIn("Expiration date", back.columns)
+
     def test_duplicate_check_variation(self):
         prefix = "0108606018940011215"
         df = pd.DataFrame(
