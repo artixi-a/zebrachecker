@@ -135,21 +135,16 @@ def _extra_specs(base_name):
     return st.session_state.get("extra_cols", {}).get(base_name, [])
 
 
-def _export_frame(result, base_name):
-    return bt_io.apply_extra_columns(result, _extra_specs(base_name))
-
-
-@st.dialog("Add columns to export")
-def _extra_columns_dialog(base_name):
+def _column_editor(base_name):
     store = st.session_state.setdefault("extra_cols", {})
     specs = store.setdefault(base_name, [])
     if specs:
-        st.caption("Current columns: " + ", ".join(s["name"] for s in specs))
+        st.caption("Added columns: " + ", ".join(s["name"] for s in specs))
         if st.button("Clear all", key=f"extra_clear_{base_name}"):
             store[base_name] = []
             st.rerun(scope="fragment")
     name = st.text_input(
-        "Column name", key=f"extra_name_{base_name}", placeholder="Expiration date"
+        "New column name", key=f"extra_name_{base_name}", placeholder="Expiration date"
     )
     is_date = st.checkbox(
         "Format as date (real Excel date)", value=True, key=f"extra_isd_{base_name}"
@@ -167,36 +162,49 @@ def _extra_columns_dialog(base_name):
             st.warning("Enter a column name.")
 
 
+@st.dialog("Export to Excel")
+def _excel_export_dialog(result, base_name, header):
+    st.write(
+        "Do you want to add extra columns before exporting "
+        "(e.g. manufacture date, expiration date)?"
+    )
+    _column_editor(base_name)
+    specs = _extra_specs(base_name)
+    export_df = bt_io.apply_extra_columns(result, specs)
+    if specs:
+        with st.expander("Preview (first 5 rows)", expanded=True):
+            st.dataframe(_display(export_df).head(5), use_container_width=True)
+    st.divider()
+    st.download_button(
+        "Download .xlsx",
+        data=bt_io.to_excel_bytes(export_df, header=header),
+        file_name=f"{os.path.splitext(base_name)[0]}.xlsx",
+        mime=EXCEL_MIME,
+        key=f"dl_go_{base_name}",
+        type="primary",
+        use_container_width=True,
+    )
+
+
 def _download_buttons(result, base_name, header=True):
     stem = os.path.splitext(base_name)[0]
-    export_df = _export_frame(result, base_name)
     c1, c2, c3 = st.columns(3)
-    c1.download_button(
-        "Download Excel (.xlsx)",
-        data=bt_io.to_excel_bytes(export_df, header=header),
-        file_name=f"{stem}.xlsx",
-        mime=EXCEL_MIME,
-        key=f"dl_xlsx_{base_name}",
-    )
+    if c1.button("Download Excel (.xlsx)", key=f"dl_xlsx_{base_name}"):
+        _excel_export_dialog(result, base_name, header)
     c2.download_button(
         "Download CSV",
-        data=bt_io.to_csv_bytes(export_df, header=header),
+        data=bt_io.to_csv_bytes(result, header=header),
         file_name=f"{stem}.csv",
         mime="text/csv",
         key=f"dl_csv_{base_name}",
     )
     c3.download_button(
         "Download TSV",
-        data=bt_io.to_csv_bytes(export_df, header=header, sep="\t"),
+        data=bt_io.to_csv_bytes(result, header=header, sep="\t"),
         file_name=f"{stem}.tsv",
         mime="text/tab-separated-values",
         key=f"dl_tsv_{base_name}",
     )
-    bc, cc = st.columns([1, 4])
-    if bc.button("Add columns", key=f"addcols_{base_name}"):
-        _extra_columns_dialog(base_name)
-    if _extra_specs(base_name):
-        cc.caption("Extra columns: " + ", ".join(s["name"] for s in _extra_specs(base_name)))
 
 
 def _download_sheets(sheets, base_name):
@@ -238,14 +246,24 @@ def _colored_preview(table):
     )
 
 
-def show_result(res):
-    if callable(res):
-        with st.spinner("Working..."):
-            try:
-                res = res()
-            except Exception as exc:
-                st.error(f"Operation failed: {exc}")
-                return
+def show_result(res, state_key=None, run=True):
+    store = st.session_state.setdefault("results", {})
+    if state_key is not None and not run:
+        res = store.get(state_key)
+        if res is None:
+            return
+    else:
+        if callable(res):
+            with st.spinner("Working..."):
+                try:
+                    res = res()
+                except Exception as exc:
+                    st.error(f"Operation failed: {exc}")
+                    return
+        if state_key is not None:
+            store[state_key] = res
+    if res is None:
+        return
     st.subheader(res.title)
     if res.verdict is not None:
         if res.verdict.get("passed"):
@@ -269,7 +287,7 @@ def show_result(res):
             _download_buttons(res.result, res.output_name, res.output_header)
             with st.expander("Preview cleaned file (first 100 rows)"):
                 st.dataframe(
-                    _display(_export_frame(res.result, res.output_name)).head(100),
+                    _display(res.result).head(100),
                     use_container_width=True,
                 )
         st.caption("Audit sheets: " + ", ".join(res.sheets.keys()))
@@ -285,7 +303,7 @@ def show_result(res):
         _download_buttons(res.result, res.output_name, res.output_header)
         with st.expander("Preview output (first 100 rows)"):
             st.dataframe(
-                _display(_export_frame(res.result, res.output_name)).head(100),
+                _display(res.result).head(100),
                 use_container_width=True,
             )
 
@@ -331,8 +349,12 @@ def op_gs(df, key):
         pv("gs_prefix", tokens[0] if tokens else core.DEFAULT_GS_PREFIX),
         key=f"gspfx_{key}_{ptag()}",
     )
-    if st.button("Run", type="primary", key=f"run_gs_{key}"):
-        show_result(lambda: ops.check_gs(df, column, mode, marker, gs_prefix))
+    run = st.button("Run", type="primary", key=f"run_gs_{key}")
+    show_result(
+        lambda: ops.check_gs(df, column, mode, marker, gs_prefix),
+        state_key=f"gs_{key}",
+        run=run,
+    )
 
 
 def op_prefix(df, key):
@@ -350,8 +372,12 @@ def op_prefix(df, key):
         horizontal=True,
         key=f"pfxact_{key}",
     )
-    if st.button("Run", type="primary", key=f"run_pfx_{key}"):
-        show_result(lambda: ops.check_prefix(df, column, prefix, action=action))
+    run = st.button("Run", type="primary", key=f"run_pfx_{key}")
+    show_result(
+        lambda: ops.check_prefix(df, column, prefix, action=action),
+        state_key=f"pfx_{key}",
+        run=run,
+    )
 
 
 def op_length(df, key):
@@ -373,8 +399,12 @@ def op_length(df, key):
         value=int(default_len),
         key=f"len_{key}_{ptag()}",
     )
-    if st.button("Run", type="primary", key=f"run_len_{key}"):
-        show_result(lambda: ops.check_length(df, column, int(target)))
+    run = st.button("Run", type="primary", key=f"run_len_{key}")
+    show_result(
+        lambda: ops.check_length(df, column, int(target)),
+        state_key=f"len_{key}",
+        run=run,
+    )
 
 
 def _key_mode_default():
@@ -393,8 +423,12 @@ def op_dedupe(df, key):
         key=f"dedupemode_{key}_{ptag()}",
     )
     length = st.number_input("Core ID length", min_value=1, value=core.DEFAULT_CORE_LENGTH, key=f"dedupelen_{key}_{ptag()}")
-    if st.button("Run", type="primary", key=f"run_dedupe_{key}"):
-        show_result(lambda: ops.deduplicate(df, column, key_mode, int(length)))
+    run = st.button("Run", type="primary", key=f"run_dedupe_{key}")
+    show_result(
+        lambda: ops.deduplicate(df, column, key_mode, int(length)),
+        state_key=f"dedupe_{key}",
+        run=run,
+    )
 
 
 def op_duplicate(df, key):
@@ -435,18 +469,20 @@ def op_duplicate(df, key):
         }[a],
         key=f"dupact_{key}",
     )
-    if st.button("Run", type="primary", key=f"run_dup_{key}"):
-        show_result(
-            lambda: ops.duplicate_check(
-                df,
-                column,
-                key_mode=key_mode,
-                length=int(length),
-                gs_prefix=gs_prefix or None,
-                action=action,
-                view=view,
-            )
-        )
+    run = st.button("Run", type="primary", key=f"run_dup_{key}")
+    show_result(
+        lambda: ops.duplicate_check(
+            df,
+            column,
+            key_mode=key_mode,
+            length=int(length),
+            gs_prefix=gs_prefix or None,
+            action=action,
+            view=view,
+        ),
+        state_key=f"dup_{key}",
+        run=run,
+    )
 
 
 def op_random(df, key):
@@ -482,8 +518,8 @@ def op_random(df, key):
         prefix1 = st.text_input("Dummy prefix", core.COMMON_PREFIXES[0], key=f"dumpre_{key}")
         infix = st.text_input("Dummy infix", "91EE1292", key=f"duminf_{key}")
         run = lambda: ops.insert_dummies(df, column, int(n), prefix1, infix, seed=seed_val)
-    if st.button("Run", type="primary", key=f"run_rand_{key}"):
-        show_result(lambda: run())
+    go = st.button("Run", type="primary", key=f"run_rand_{key}")
+    show_result(lambda: run(), state_key=f"rand_{key}", run=go)
 
 
 def op_filter(df, key):
@@ -499,17 +535,19 @@ def op_filter(df, key):
     split_prefix = st.text_input("Split jammed codes on prefix (blank = off)", default_prefix, key=f"split_{key}_{ptag()}")
     remove_prefix = st.text_input("Remove rows starting with (blank = off)", "", key=f"rempfx_{key}_{ptag()}")
     dedupe = st.checkbox("Deduplicate afterwards", value=True, key=f"fdedupe_{key}_{ptag()}")
-    if st.button("Run", type="primary", key=f"run_filter_{key}"):
-        show_result(
-            lambda: ops.filter_clean(
-                df,
-                column,
-                min_length=int(min_length) or None,
-                split_prefix=split_prefix or None,
-                remove_prefix=remove_prefix or None,
-                dedupe=dedupe,
-            )
-        )
+    run = st.button("Run", type="primary", key=f"run_filter_{key}")
+    show_result(
+        lambda: ops.filter_clean(
+            df,
+            column,
+            min_length=int(min_length) or None,
+            split_prefix=split_prefix or None,
+            remove_prefix=remove_prefix or None,
+            dedupe=dedupe,
+        ),
+        state_key=f"filter_{key}",
+        run=run,
+    )
 
 
 def op_full_audit(df, key):
@@ -580,21 +618,23 @@ def op_full_audit(df, key):
         key=f"fa_cleandup_{key}_{ptag()}",
     )
     include_passed = st.checkbox("Include a 'Passed' sheet", value=False, key=f"fa_pass_{key}_{ptag()}")
-    if st.button("Run full audit", type="primary", key=f"run_fa_{key}"):
-        show_result(
-            lambda: ops.full_audit(
-                df,
-                column,
-                prefix=prefix or None,
-                expected_length=int(expected) or None,
-                gs_mode=mode,
-                marker=marker,
-                gs_prefix=gs_prefix or None,
-                dedupe_mode=dedupe_mode,
-                include_passed=include_passed,
-                clean_duplicates=clean_dup,
-            )
-        )
+    run = st.button("Run full audit", type="primary", key=f"run_fa_{key}")
+    show_result(
+        lambda: ops.full_audit(
+            df,
+            column,
+            prefix=prefix or None,
+            expected_length=int(expected) or None,
+            gs_mode=mode,
+            marker=marker,
+            gs_prefix=gs_prefix or None,
+            dedupe_mode=dedupe_mode,
+            include_passed=include_passed,
+            clean_duplicates=clean_dup,
+        ),
+        state_key=f"fa_{key}",
+        run=run,
+    )
     with st.expander("Save these settings as a preset"):
         new_name = st.text_input("Preset name", key=f"fa_savename_{key}")
         if st.button("Save preset", key=f"fa_savebtn_{key}"):
@@ -665,12 +705,14 @@ def two_file_section(uploaded_a, uploaded_b, key):
             value=True,
             key=f"cmpdd_{key}",
         )
-        if st.button("Run", type="primary", key=f"run_cmp_{key}"):
-            show_result(
-                lambda: ops.compare_files(
-                    df_a, df_b, mode, key_mode, dedupe=dedupe, keep=keep
-                )
-            )
+        run = st.button("Run", type="primary", key=f"run_cmp_{key}")
+        show_result(
+            lambda: ops.compare_files(
+                df_a, df_b, mode, key_mode, dedupe=dedupe, keep=keep
+            ),
+            state_key=f"cmp_{key}",
+            run=run,
+        )
     elif op == "merge":
         column = pick_column(df_a, f"{key}col")
         target = st.number_input(
@@ -685,23 +727,29 @@ def two_file_section(uploaded_a, uploaded_b, key):
             key=f"mrg_gs_{key}_{ptag()}",
         )
         dedupe = st.checkbox("Deduplicate source first", value=True, key=f"mrg_dd_{key}")
-        if st.button("Run", type="primary", key=f"run_mrg_{key}"):
-            show_result(
-                lambda: ops.merge_validated(
-                    df_a,
-                    df_b,
-                    column,
-                    target_length=int(target) or None,
-                    gs_prefix=gs_prefix or None,
-                    dedupe_source=dedupe,
-                )
-            )
+        run = st.button("Run", type="primary", key=f"run_mrg_{key}")
+        show_result(
+            lambda: ops.merge_validated(
+                df_a,
+                df_b,
+                column,
+                target_length=int(target) or None,
+                gs_prefix=gs_prefix or None,
+                dedupe_source=dedupe,
+            ),
+            state_key=f"mrg_{key}",
+            run=run,
+        )
     else:
         column = pick_column(df_a, f"{key}col2")
         n = st.number_input("How many to sample from file 2", min_value=1, value=min(100, len(df_b)), key=f"cs_{key}")
         shuffle = st.checkbox("Shuffle final result", value=True, key=f"cs_sh_{key}")
-        if st.button("Run", type="primary", key=f"run_cs_{key}"):
-            show_result(lambda: ops.combine_sample(df_a, df_b, column, int(n), shuffle))
+        run = st.button("Run", type="primary", key=f"run_cs_{key}")
+        show_result(
+            lambda: ops.combine_sample(df_a, df_b, column, int(n), shuffle),
+            state_key=f"cs_{key}",
+            run=run,
+        )
 
 
 SINGLE_OPS = {
